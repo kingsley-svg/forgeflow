@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ForgeFlow — AI Dispute Resolution for Nigeria</title>
+  <meta name="description" content="ForgeFlow automates recovery of failed bank transfers in Nigeria, holding banks accountable to CBN-mandated 48-72 hour resolution timelines." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #04090F;
+      --surface:   #080F1A;
+      --card:      #0C1622;
+      --border:    #142030;
+      --green:     #00D68F;
+      --green-dim: #004D33;
+      --amber:     #F5A623;
+      --red:       #FF4757;
+      --blue:      #0EA5E9;
+      --text:      #E2EBF5;
+      --muted:     #5A7A9A;
+      --accent:    #00D68F;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 400;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE TEXTURE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 6vw;
+      background: rgba(4, 9, 15, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none;
+    }
+    .nav-logo-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--green-dim), var(--green));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
+    }
+    .nav-logo-text {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 20px;
+      color: var(--text); letter-spacing: -0.5px;
+    }
+
+    .nav-links {
+      display: flex; align-items: center; gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted); text-decoration: none;
+      font-size: 14px; font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .nav-cta {
+      background: var(--green); color: #000;
+      padding: 9px 22px; border-radius: 8px;
+      font-weight: 700; font-size: 13px;
+      text-decoration: none; letter-spacing: 0.2px;
+      transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 140px 6vw 80px;
+      overflow: hidden;
+    }
+
+    /* Radial glow */
+    .hero::after {
+      content: '';
+      position: absolute;
+      top: 20%; left: 50%;
+      transform: translateX(-50%);
+      width: 700px; height: 500px;
+      background: radial-gradient(ellipse, rgba(0,214,143,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Animated grid */
+    .hero-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(20,32,48,0.5) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(20,32,48,0.5) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 0%, transparent 100%);
+      animation: gridDrift 20s linear infinite;
+    }
+    @keyframes gridDrift {
+      0%   { background-position: 0 0; }
+      100% { background-position: 60px 60px; }
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(0,214,143,0.08);
+      border: 1px solid rgba(0,214,143,0.2);
+      border-radius: 100px; padding: 6px 16px;
+      font-size: 12px; font-weight: 500; color: var(--green);
+      letter-spacing: 0.5px; text-transform: uppercase;
+      margin-bottom: 28px; position: relative;
+      animation: fadeUp 0.6s ease both;
+    }
+    .badge-dot {
+      width: 6px; height: 6px;
+      background: var(--green); border-radius: 50%;
+      animation: pulse 2s ease infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.7); }
+    }
+
+    .hero h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(38px, 7vw, 78px);
+      line-height: 1.05;
+      letter-spacing: -2px;
+      position: relative;
+      animation: fadeUp 0.7s 0.1s ease both;
+    }
+    .hero h1 em {
+      font-style: normal;
+      color: var(--green);
+    }
+    .hero h1 .line2 { color: var(--muted); }
+
+    .hero-sub {
+      max-width: 560px;
+      font-size: 18px; color: var(--muted);
+      line-height: 1.7; margin: 24px auto 40px;
+      font-weight: 300;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+
+    .hero-actions {
+      display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+      animation: fadeUp 0.7s 0.3s ease both;
+    }
+    .btn-primary {
+      background: var(--green); color: #000;
+      padding: 14px 32px; border-radius: 10px;
+      font-weight: 700; font-size: 15px;
+      text-decoration: none; letter-spacing: 0.2px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 0 30px rgba(0,214,143,0.25);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 50px rgba(0,214,143,0.4);
+    }
+    .btn-secondary {
+      background: transparent; color: var(--text);
+      padding: 14px 32px; border-radius: 10px;
+      font-weight: 500; font-size: 15px;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-secondary:hover {
+      border-color: var(--muted);
+      background: rgba(255,255,255,0.03);
+    }
+
+    /* ── STATS STRIP ── */
+    .stats-strip {
+      display: flex; justify-content: center; flex-wrap: wrap;
+      gap: 0; border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      animation: fadeUp 0.7s 0.4s ease both;
+    }
+    .stat-item {
+      padding: 28px 48px;
+      border-right: 1px solid var(--border);
+      text-align: center; flex: 1; min-width: 160px;
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 32px; font-weight: 800;
+      color: var(--green); line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-label {
+      font-size: 12px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.8px;
+    }
+
+    /* ── SECTIONS ── */
+    section { position: relative; padding: 100px 6vw; }
+
+    .section-tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      color: var(--green); letter-spacing: 1.5px;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(28px, 4vw, 46px);
+      font-weight: 800; line-height: 1.1;
+      letter-spacing: -1px; margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 17px; color: var(--muted);
+      max-width: 500px; line-height: 1.7;
+      font-weight: 300; margin-bottom: 56px;
+    }
+
+    /* ── PROBLEM ── */
+    .problem { background: var(--surface); }
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px; margin-top: 48px;
+    }
+    .problem-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px;
+      transition: border-color 0.2s, transform 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .problem-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--red), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .problem-card:hover { border-color: rgba(255,71,87,0.3); transform: translateY(-3px); }
+    .problem-card:hover::before { opacity: 1; }
+    .problem-icon { font-size: 28px; margin-bottom: 16px; }
+    .problem-card h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 17px; font-weight: 700;
+      margin-bottom: 10px; color: var(--text);
+    }
+    .problem-card p { font-size: 14px; color: var(--muted); line-height: 1.7; }
+    .problem-card .stat-highlight {
+      font-family: 'Syne', sans-serif;
+      font-size: 28px; font-weight: 800;
+      color: var(--red); margin: 12px 0 4px;
+    }
+
+    /* ── HOW IT WORKS ── */
+    .how { background: var(--bg); }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2px; margin-top: 48px;
+      border: 1px solid var(--border); border-radius: 16px;
+      overflow: hidden;
+    }
+    .step {
+      background: var(--card); padding: 36px 28px;
+      border-right: 1px solid var(--border);
+      position: relative;
+      transition: background 0.2s;
+    }
+    .step:last-child { border-right: none; }
+    .step:hover { background: #0F1E30; }
+    .step-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 48px; font-weight: 800;
+      color: var(--border); line-height: 1;
+      margin-bottom: 20px;
+      transition: color 0.2s;
+    }
+    .step:hover .step-num { color: var(--green-dim); }
+    .step-icon { font-size: 24px; margin-bottom: 14px; }
+    .step h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px; font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .step p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+    .step-cbn {
+      display: inline-block; margin-top: 12px;
+      font-size: 10px; color: var(--green);
+      background: rgba(0,214,143,0.08);
+      border: 1px solid rgba(0,214,143,0.15);
+      border-radius: 4px; padding: 3px 8px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── FEATURES ── */
+    .features { background: var(--surface); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px; margin-top: 48px;
+    }
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 30px;
+      transition: border-color 0.25s, transform 0.25s;
+    }
+    .feature-card:hover {
+      border-color: rgba(0,214,143,0.25);
+      transform: translateY(-4px);
+    }
+    .feature-icon-wrap {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 18px;
+    }
+    .feature-card h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 16px; font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .feature-card p { font-size: 13px; color: var(--muted); line-height: 1.7; }
+    .feature-tag {
+      display: inline-block; margin-top: 14px;
+      font-size: 10px; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── TIMELINE VISUAL ── */
+    .timeline-section { background: var(--bg); }
+    .timeline-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 40px;
+      margin-top: 48px; overflow: hidden;
+    }
+    .tl-header {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 32px;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .tl-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px; font-weight: 700;
+    }
+    .tl-badge {
+      background: rgba(255,71,87,0.1);
+      border: 1px solid rgba(255,71,87,0.2);
+      color: var(--red); font-size: 12px;
+      font-weight: 700; padding: 5px 12px;
+      border-radius: 6px;
+    }
+    .tl-bar-wrap { position: relative; margin-bottom: 12px; }
+    .tl-bar-label {
+      display: flex; justify-content: space-between;
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .tl-bar-track {
+      height: 10px; background: rgba(255,255,255,0.04);
+      border-radius: 10px; overflow: hidden;
+      position: relative;
+    }
+    .tl-bar-fill {
+      height: 100%; border-radius: 10px;
+      position: relative;
+    }
+    .tl-bar-fill.green  { background: linear-gradient(90deg, var(--green-dim), var(--green)); width: 40%; }
+    .tl-bar-fill.amber  { background: linear-gradient(90deg, #7A4A00, var(--amber)); width: 75%; }
+    .tl-bar-fill.red    {
+      background: linear-gradient(90deg, #7A0A0A, var(--red)); width: 110%;
+      animation: overflowPulse 2s ease infinite;
+    }
+    @keyframes overflowPulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.6; }
+    }
+    .tl-markers {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--muted);
+      margin-top: 6px; letter-spacing: 0.3px;
+    }
+    .tl-marker-line {
+      position: absolute; top: 0; bottom: 0;
+      width: 1px; background: rgba(245,166,35,0.4);
+    }
+
+    /* ── FOUNDER ── */
+    .founder { background: var(--surface); }
+    .founder-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px; align-items: center;
+    }
+    .founder-text .section-tag { margin-bottom: 10px; }
+    .founder-text h2 { margin-bottom: 20px; }
+    .founder-text p {
+      font-size: 16px; color: var(--muted);
+      line-height: 1.8; margin-bottom: 16px;
+      font-weight: 300;
+    }
+    .founder-text p strong { color: var(--text); font-weight: 500; }
+    .founder-visual {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 36px;
+    }
+    .founder-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px; font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .founder-role { font-size: 13px; color: var(--green); margin-bottom: 24px; }
+    .founder-fact {
+      display: flex; gap: 14px; align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    .fact-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(0,214,143,0.08);
+      border: 1px solid rgba(0,214,143,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .fact-text { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .fact-text strong { color: var(--text); }
+
+    /* ── TECH STACK ── */
+    .tech { background: var(--bg); }
+    .tech-grid {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      margin-top: 40px;
+    }
+    .tech-pill {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 100px; padding: 9px 20px;
+      font-size: 13px; font-weight: 500;
+      display: flex; align-items: center; gap: 8px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .tech-pill:hover {
+      border-color: rgba(0,214,143,0.3);
+      background: rgba(0,214,143,0.04);
+    }
+    .tech-pill-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+
+    /* ── CBN COMPLIANCE ── */
+    .compliance { background: var(--surface); }
+    .compliance-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px; margin-top: 48px;
+    }
+    .compliance-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--green);
+      border-radius: 12px; padding: 24px;
+    }
+    .compliance-card h4 {
+      font-family: 'Syne', sans-serif;
+      font-size: 14px; font-weight: 700;
+      color: var(--green); margin-bottom: 8px;
+    }
+    .compliance-card p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .compliance-card .ref {
+      display: inline-block; margin-top: 10px;
+      font-size: 10px; color: var(--muted);
+      font-style: italic;
+    }
+
+    /* ── CTA ── */
+    .cta-section {
+      background: var(--bg);
+      text-align: center; padding: 120px 6vw;
+      position: relative; overflow: hidden;
+    }
+    .cta-section::before {
+      content: '';
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px; height: 400px;
+      background: radial-gradient(ellipse, rgba(0,214,143,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-section h2 { margin-bottom: 16px; }
+    .cta-section p {
+      font-size: 17px; color: var(--muted);
+      margin-bottom: 40px; font-weight: 300;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 40px 6vw;
+      display: flex; justify-content: space-between;
+      align-items: center; flex-wrap: wrap; gap: 20px;
+    }
+    .footer-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 18px;
+    }
+    .footer-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a {
+      font-size: 12px; color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--green); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .reveal {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1; transform: translateY(0);
+    }
+
+    /* ── TICKER ── */
+    .ticker-wrap {
+      overflow: hidden;
+      background: rgba(0,214,143,0.05);
+      border-top: 1px solid rgba(0,214,143,0.1);
+      border-bottom: 1px solid rgba(0,214,143,0.1);
+      padding: 10px 0;
+    }
+    .ticker {
+      display: flex; gap: 60px;
+      animation: ticker 25s linear infinite;
+      white-space: nowrap;
+    }
+    .ticker-item {
+      font-size: 12px; color: var(--green);
+      font-weight: 500; letter-spacing: 0.5px;
+      text-transform: uppercase; flex-shrink: 0;
+    }
+    .ticker-sep { color: var(--green-dim); }
+    @keyframes ticker {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ── MOBILE ── */
+    @media (max-width: 768px) {
+      nav { padding: 14px 5vw; }
+      .nav-links { display: none; }
+      .hero { padding: 120px 5vw 60px; }
+      .stat-item { padding: 20px 24px; }
+      section { padding: 70px 5vw; }
+      .founder-card { grid-template-columns: 1fr; gap: 30px; }
+      footer { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">
+    <div class="nav-logo-icon">⚡</div>
+    <span class="nav-logo-text">ForgeFlow</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#problem">Problem</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#compliance">Compliance</a></li>
+    <li><a href="#founder">About</a></li>
+  </ul>
+  <a href="#contact" class="nav-cta">Get Early Access</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+
+  <div class="hero-badge">
+    <span class="badge-dot"></span>
+    Now in Development · CBN Sandbox Ready
+  </div>
+
+  <h1>
+    Your Money.<br>
+    <em>Recovered.</em><br>
+    <span class="line2">Automatically.</span>
+  </h1>
+
+  <p class="hero-sub">
+    ForgeFlow is Nigeria's first AI-powered dispute resolution layer —
+    automating recovery of failed bank transfers and holding banks
+    accountable to CBN-mandated timelines.
+  </p>
+
+  <div class="hero-actions">
+    <a href="#how" class="btn-primary">See How It Works</a>
+    <a href="#features" class="btn-secondary">View Features →</a>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <span class="ticker-item">CBN Circular FPR/DIR/GEN/CIR/06/010</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">72-Hour PoS/Web Resolution Mandate</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">48-Hour ATM Resolution Mandate</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">AES-256-GCM Encryption</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">NDPA §2.1 Compliant</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">Automated Legal Drafting</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">CBN Regulatory Sandbox 2026</span>
+    <span class="ticker-sep">✦</span>
+    <!-- duplicate for seamless loop -->
+    <span class="ticker-item">CBN Circular FPR/DIR/GEN/CIR/06/010</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">72-Hour PoS/Web Resolution Mandate</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">48-Hour ATM Resolution Mandate</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">AES-256-GCM Encryption</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">NDPA §2.1 Compliant</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">Automated Legal Drafting</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">CBN Regulatory Sandbox 2026</span>
+    <span class="ticker-sep">✦</span>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-strip reveal">
+  <div class="stat-item">
+    <div class="stat-num">₦198B+</div>
+    <div class="stat-label">Lost annually to failed transfers</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">72hrs</div>
+    <div class="stat-label">CBN-mandated resolution window</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">83%</div>
+    <div class="stat-label">Nigerians unaware of their rights</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">0</div>
+    <div class="stat-label">Automated enforcement tools — until now</div>
+  </div>
+</div>
+
+<!-- PROBLEM -->
+<section class="problem" id="problem">
+  <span class="section-tag reveal">The Problem</span>
+  <h2 class="reveal">Nigerian banks fail their<br>customers every day.</h2>
+  <p class="section-sub reveal">
+    Millions of Nigerians lose money to failed transactions annually.
+    Banks delay. Customers don't know their rights. Nobody enforces the rules.
+  </p>
+
+  <div class="problem-grid">
+    <div class="problem-card reveal">
+      <div class="problem-icon">🏦</div>
+      <h3>Banks Miss Deadlines Routinely</h3>
+      <p>The CBN mandates resolution within 72 hours for PoS/Web and 48 hours for ATM transactions. Most banks treat these as suggestions.</p>
+      <div class="stat-highlight">72h</div>
+      <p style="font-size:12px; color: var(--muted)">CBN mandate — routinely violated</p>
+    </div>
+    <div class="problem-card reveal">
+      <div class="problem-icon">😤</div>
+      <h3>Customers Have No Power</h3>
+      <p>Most Nigerians don't know CBN Circular FPR/DIR/GEN/CIR/06/010 exists. Without knowledge, there's no leverage. Banks know this.</p>
+      <div class="stat-highlight">83%</div>
+      <p style="font-size:12px; color: var(--muted)">Unaware of their CBN rights</p>
+    </div>
+    <div class="problem-card reveal">
+      <div class="problem-icon">📋</div>
+      <h3>Complaints Go Nowhere</h3>
+      <p>Manual complaint processes are slow, frustrating, and rarely result in resolution. There is no automated accountability layer.</p>
+      <div class="stat-highlight">₦198B</div>
+      <p style="font-size:12px; color: var(--muted)">Estimated annual value stuck in disputes</p>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how">
+  <span class="section-tag reveal">How It Works</span>
+  <h2 class="reveal">From failed transfer to<br>formal escalation — automated.</h2>
+  <p class="section-sub reveal">
+    ForgeFlow handles the entire dispute lifecycle. You submit once.
+    We track, warn, and escalate automatically.
+  </p>
+
+  <div class="steps reveal">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-icon">📸</div>
+      <h3>Submit Receipt</h3>
+      <p>Upload your bank receipt or paste transaction details. Our OCR engine extracts the transaction reference and bank name automatically.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-icon">⏱</div>
+      <h3>Timer Starts</h3>
+      <p>ForgeFlow logs the dispute and starts the CBN regulatory countdown — 72h for PoS/Web, 48h for ATM — immediately.</p>
+      <span class="step-cbn">CBN Mandate Enforced</span>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-icon">⚠️</div>
+      <h3>Automatic Warnings</h3>
+      <p>At 75% of the deadline, ForgeFlow sends automatic warnings to the bank via WhatsApp and email. No manual follow-up needed.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <div class="step-icon">📄</div>
+      <h3>Legal Escalation</h3>
+      <p>If the bank misses the CBN deadline, a formal escalation letter — citing the exact CBN circular — is generated and sent automatically.</p>
+      <span class="step-cbn">PDF Letter Generated</span>
+    </div>
+  </div>
+</section>
+
+<!-- TIMELINE VISUAL -->
+<section class="timeline-section">
+  <span class="section-tag reveal">Live Monitoring</span>
+  <h2 class="reveal">Every case tracked in real-time.</h2>
+
+  <div class="timeline-wrap reveal">
+    <div class="tl-header">
+      <div class="tl-title">Dispute Timeline Dashboard</div>
+      <div class="tl-badge">🚩 1 Case Overdue</div>
+    </div>
+
+    <div class="tl-bar-wrap">
+      <div class="tl-bar-label">
+        <span>Case #FF-A1B2 · GTBank · ₦45,000 · PoS</span>
+        <span style="color:var(--green); font-weight:600">⬤ Monitoring — 28h left</span>
+      </div>
+      <div class="tl-bar-track">
+        <div class="tl-bar-fill green"></div>
+      </div>
+      <div class="tl-markers">
+        <span>0h</span><span>18h</span><span>36h</span><span>54h (75%)</span><span>72h deadline</span>
+      </div>
+    </div>
+
+    <div class="tl-bar-wrap" style="margin-top:28px">
+      <div class="tl-bar-label">
+        <span>Case #FF-C3D4 · Access Bank · ₦12,500 · ATM</span>
+        <span style="color:var(--amber); font-weight:600">⚠ Warning — 10h left</span>
+      </div>
+      <div class="tl-bar-track">
+        <div class="tl-bar-fill amber"></div>
+      </div>
+      <div class="tl-markers">
+        <span>0h</span><span>12h</span><span>24h</span><span>36h (75%)</span><span>48h deadline</span>
+      </div>
+    </div>
+
+    <div class="tl-bar-wrap" style="margin-top:28px">
+      <div class="tl-bar-label">
+        <span>Case #FF-E5F6 · Zenith Bank · ₦87,000 · Web</span>
+        <span style="color:var(--red); font-weight:600">🚩 Escalated — Letter Sent</span>
+      </div>
+      <div class="tl-bar-track">
+        <div class="tl-bar-fill red"></div>
+      </div>
+      <div class="tl-markers">
+        <span>0h</span><span>18h</span><span>36h</span><span>54h (75%)</span><span style="color:var(--red); font-weight:600">72h ✗ OVERDUE</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <span class="section-tag reveal">Core Features</span>
+  <h2 class="reveal">Built for Nigeria's<br>financial reality.</h2>
+  <p class="section-sub reveal">
+    Every feature is designed around how Nigerian banks operate
+    and what the CBN framework requires.
+  </p>
+
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <div class="feature-icon-wrap" style="background:rgba(14,165,233,0.1)">◎</div>
+      <h3>OCR Receipt Intelligence</h3>
+      <p>Upload any Nigerian bank receipt image. ForgeFlow extracts the transaction reference, bank name, amount, and date automatically — supporting GTBank, Access, UBA, Zenith, Kuda, OPay, and 15+ more.</p>
+      <span class="feature-tag" style="background:rgba(14,165,233,0.1); color:var(--blue)">pytesseract + regex engine</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon-wrap" style="background:rgba(0,214,143,0.1)">⏱</div>
+      <h3>Regulatory Timer Engine</h3>
+      <p>Automatically calculates CBN-mandated deadlines per transaction type. Triggers warnings at 75% elapsed and escalation at breach. Zero manual tracking required.</p>
+      <span class="feature-tag" style="background:rgba(0,214,143,0.1); color:var(--green)">CBN Circular compliant</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon-wrap" style="background:rgba(245,166,35,0.1)">📄</div>
+      <h3>Automated Legal Drafting</h3>
+      <p>Generates formal CBN escalation letters as professional PDFs. Each letter cites the exact regulatory instrument, includes case details, and sets a 48-hour compliance ultimatum.</p>
+      <span class="feature-tag" style="background:rgba(245,166,35,0.1); color:var(--amber)">PDF · ReportLab</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon-wrap" style="background:rgba(255,71,87,0.1)">🔐</div>
+      <h3>AES-256-GCM Encryption</h3>
+      <p>All personal data is encrypted with authenticated AES-256-GCM before storage. Key derivation uses PBKDF2-HMAC-SHA256 at 480,000 iterations — OWASP 2024 standard.</p>
+      <span class="feature-tag" style="background:rgba(255,71,87,0.1); color:var(--red)">NDPA §2.1 Compliant</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon-wrap" style="background:rgba(0,214,143,0.1)">📱</div>
+      <h3>WhatsApp Integration</h3>
+      <p>Users submit receipts and receive status updates via WhatsApp. Built for Nigeria's primary communication channel using Twilio WABA integration.</p>
+      <span class="feature-tag" style="background:rgba(0,214,143,0.1); color:var(--green)">Twilio WABA · Roadmap</span>
+    </div>
+    <div class="feature-card reveal">
+      <div class="feature-icon-wrap" style="background:rgba(14,165,233,0.1)">🛡</div>
+      <h3>NDPA Consent Ledger</h3>
+      <p>Every personal data processing action is logged with tamper-evidence hashing. Fully auditable consent trail for NDPA §2.1 compliance and regulatory review.</p>
+      <span class="feature-tag" style="background:rgba(14,165,233,0.1); color:var(--blue)">Integrity-hashed log</span>
+    </div>
+  </div>
+</section>
+
+<!-- COMPLIANCE -->
+<section class="compliance" id="compliance">
+  <span class="section-tag reveal">Regulatory Foundation</span>
+  <h2 class="reveal">Built on CBN law.<br>Not opinion.</h2>
+  <p class="section-sub reveal">
+    Every enforcement action ForgeFlow takes is backed by a specific
+    regulatory instrument. This is not a complaint tool — it's a compliance engine.
+  </p>
+
+  <div class="compliance-cards">
+    <div class="compliance-card reveal">
+      <h4>CBN Circular FPR/DIR/GEN/CIR/06/010</h4>
+      <p>Mandates resolution of failed PoS and Web/Internet transactions within 72 hours. ForgeFlow enforces this automatically for every applicable case.</p>
+      <span class="ref">Web & PoS Transactions · 72-hour window</span>
+    </div>
+    <div class="compliance-card reveal">
+      <h4>CBN Consumer Protection Framework 2022</h4>
+      <p>Establishes 48-hour resolution requirement for ATM and USSD transaction failures. ForgeFlow tracks this timeline separately per transaction type.</p>
+      <span class="ref">ATM & USSD Transactions · 48-hour window</span>
+    </div>
+    <div class="compliance-card reveal">
+      <h4>CBN Complaint Management Framework 2021</h4>
+      <p>Requires banks to maintain a Complaint Management Officer (CMO) and provide written resolution confirmations. ForgeFlow demands this in every escalation letter.</p>
+      <span class="ref">Formal complaint procedure · CMO accountability</span>
+    </div>
+    <div class="compliance-card reveal">
+      <h4>Nigeria Data Protection Act 2023 (NDPA)</h4>
+      <p>ForgeFlow collects explicit consent before processing any personal data, maintains a tamper-evident consent log, and stores all data within Nigeria's jurisdiction.</p>
+      <span class="ref">NDPA §2.1 · Explicit consent · Data sovereignty</span>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="tech">
+  <span class="section-tag reveal">Technology</span>
+  <h2 class="reveal">Production-grade stack.<br>Nigerian-market ready.</h2>
+
+  <div class="tech-grid reveal">
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#3776AB"></span>Python 3.12</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#009688"></span>FastAPI</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#336791"></span>PostgreSQL</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#FF6B6B"></span>AES-256-GCM</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#00D68F"></span>ReportLab PDF</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#4CAF50"></span>pytesseract OCR</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#F6851B"></span>React Dashboard</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#FF0000"></span>Twilio WABA</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#FF9900"></span>AWS (via Transnet)</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#0EA5E9"></span>PBKDF2-HMAC-SHA256</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#8B5CF6"></span>Mailgun</div>
+    <div class="tech-pill"><span class="tech-pill-dot" style="background:#F59E0B"></span>Termii SMS</div>
+  </div>
+</section>
+
+<!-- FOUNDER -->
+<section class="founder" id="founder">
+  <div class="founder-card">
+    <div class="founder-text">
+      <span class="section-tag reveal">The Founder</span>
+      <h2 class="reveal">Built by someone who understands the problem personally.</h2>
+      <p class="reveal">
+        Failed bank transfers aren't an abstract statistic in Nigeria — they're
+        a <strong>daily reality</strong> that affects families, small businesses,
+        and individuals who can least afford to wait.
+      </p>
+      <p class="reveal">
+        ForgeFlow was built because <strong>the regulation already exists</strong>.
+        The CBN has mandated resolution timelines since 2017. The problem isn't
+        the law — it's that nobody is enforcing it automatically. ForgeFlow changes that.
+      </p>
+    </div>
+    <div class="founder-visual reveal">
+      <div class="founder-name">Ogunremi Ayodele Kingsley</div>
+      <div class="founder-role">Founder & Lead Developer · ForgeFlow</div>
+
+      <div class="founder-fact">
+        <div class="fact-icon">🎓</div>
+        <div class="fact-text"><strong>Future university student</strong> — Food Science / Agricultural Economics. Building the financial infrastructure Nigeria's food & agri sector desperately needs.</div>
+      </div>
+      <div class="founder-fact">
+        <div class="fact-icon">🇳🇬</div>
+        <div class="fact-text"><strong>Nigeria-first approach</strong> — every design decision is made for the Nigerian financial context, CBN framework, and local market reality.</div>
+      </div>
+      <div class="founder-fact">
+        <div class="fact-icon">⚖️</div>
+        <div class="fact-text"><strong>Regulatory-native</strong> — ForgeFlow is designed from the ground up for the CBN Regulatory Sandbox 2026 application.</div>
+      </div>
+      <div class="founder-fact">
+        <div class="fact-icon">💻</div>
+        <div class="fact-text"><strong>Self-taught developer</strong> — Python, React, cryptography, PDF generation, and OCR — built and shipped independently.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="contact">
+  <span class="section-tag reveal">Get Involved</span>
+  <h2 class="reveal">Be among the first<br>to use ForgeFlow.</h2>
+  <p class="reveal">Currently in development. Early access launching soon.<br>Join the waitlist and get notified when we go live.</p>
+  <div style="display:flex; gap:14px; justify-content:center; flex-wrap:wrap;" class="reveal">
+    <a href="mailto:forgeflowng@gmail.com" class="btn-primary">Join the Waitlist</a>
+    <a href="mailto:forgeflowng@gmail.com" class="btn-secondary">Contact the Founder</a>
+  </div>
+  <p style="margin-top:24px; font-size:13px; color:var(--muted);" class="reveal">
+    forgeflowng@gmail.com
+  </p>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <div class="footer-logo">ForgeFlow ⚡</div>
+    <div class="footer-text" style="margin-top:6px">
+      AI-Powered Dispute Resolution · Nigeria<br>
+      Targeting CBN Regulatory Sandbox 2026
+    </div>
+  </div>
+  <div class="footer-text" style="text-align:center">
+    Built with purpose by Ogunremi Ayodele Kingsley<br>
+    © 2026 ForgeFlow. All rights reserved.
+  </div>
+  <div class="footer-links">
+    <a href="#problem">Problem</a>
+    <a href="#how">How It Works</a>
+    <a href="#compliance">Compliance</a>
+    <a href="#contact">Contact</a>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => {
+          entry.target.classList.add('visible');
+        }, i * 60);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  reveals.forEach(el => observer.observe(el));
+
+  // Animated counter
+  function animateCounter(el, target, prefix = '', suffix = '') {
+    let start = 0;
+    const duration = 2000;
+    const step = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = prefix + Math.floor(eased * target).toLocaleString() + suffix;
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  // Trigger counters when stats strip is visible
+  const statsObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      statsObserver.disconnect();
+    }
+  }, { threshold: 0.5 });
+
+  const strip = document.querySelector('.stats-strip');
+  if (strip) statsObserver.observe(strip);
+</script>
+
+</body>
+</html>
