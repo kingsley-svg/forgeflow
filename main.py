@@ -1,16 +1,14 @@
 """
-╔══════════════════════════════════════════════════════════════╗
-║         ForgeFlow v2.0 — Cloud Backend API                   ║
-║         FastAPI + PostgreSQL + AES-256-GCM                   ║
-║         Founder: Ogunremi Ayodele Kingsley                   ║
-╚══════════════════════════════════════════════════════════════╝
+ForgeFlow v2.0 — Cloud Backend API
+FastAPI + SQLite + AES-256-GCM
+Founder: Ogunremi Ayodele Kingsley
 """
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import datetime
 import uuid
 import os
@@ -18,6 +16,7 @@ import json
 import hashlib
 import base64
 import re
+import sqlite3
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -25,64 +24,54 @@ from cryptography.hazmat.primitives import hashes
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer,
     Table, TableStyle, HRFlowable
 )
 
-import databases
-import sqlalchemy
+# ── Database setup ─────────────────────────────────────────────
+DB_PATH = "/tmp/forgeflow.db"
 
-# ── Database ──────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "sqlite:///./forgeflow.db"  # fallback for local dev
-)
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-# Fix postgres:// → postgresql:// for SQLAlchemy
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+def init_db():
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS disputes (
+            id TEXT PRIMARY KEY,
+            bank TEXT,
+            amount REAL,
+            tx_type TEXT,
+            tx_ref TEXT,
+            customer_name TEXT,
+            account_number TEXT,
+            status TEXT DEFAULT 'MONITORING',
+            logged_at TEXT,
+            deadline TEXT,
+            warning_at TEXT,
+            timeline_hours INTEGER,
+            audit_trail TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS consent_log (
+            id TEXT PRIMARY KEY,
+            subject_id TEXT,
+            purpose TEXT,
+            lawful_basis TEXT,
+            timestamp TEXT,
+            integrity_hash TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-database = databases.Database(DATABASE_URL)
-metadata = sqlalchemy.MetaData()
-
-disputes_table = sqlalchemy.Table(
-    "disputes", metadata,
-    sqlalchemy.Column("id",             sqlalchemy.String, primary_key=True),
-    sqlalchemy.Column("bank",           sqlalchemy.String),
-    sqlalchemy.Column("amount",         sqlalchemy.Float),
-    sqlalchemy.Column("tx_type",        sqlalchemy.String),
-    sqlalchemy.Column("tx_ref",         sqlalchemy.String),
-    sqlalchemy.Column("customer_name",  sqlalchemy.String),   # encrypted
-    sqlalchemy.Column("account_number", sqlalchemy.String),   # encrypted
-    sqlalchemy.Column("status",         sqlalchemy.String, default="MONITORING"),
-    sqlalchemy.Column("logged_at",      sqlalchemy.String),
-    sqlalchemy.Column("deadline",       sqlalchemy.String),
-    sqlalchemy.Column("warning_at",     sqlalchemy.String),
-    sqlalchemy.Column("timeline_hours", sqlalchemy.Integer),
-    sqlalchemy.Column("audit_trail",    sqlalchemy.Text),     # JSON string
-)
-
-consent_table = sqlalchemy.Table(
-    "consent_log", metadata,
-    sqlalchemy.Column("id",             sqlalchemy.String, primary_key=True),
-    sqlalchemy.Column("subject_id",     sqlalchemy.String),
-    sqlalchemy.Column("purpose",        sqlalchemy.String),
-    sqlalchemy.Column("lawful_basis",   sqlalchemy.String),
-    sqlalchemy.Column("timestamp",      sqlalchemy.String),
-    sqlalchemy.Column("integrity_hash", sqlalchemy.String),
-)
-
-engine = sqlalchemy.create_engine(
-    DATABASE_URL if "postgresql" in DATABASE_URL
-    else DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-)
-metadata.create_all(engine)
-
-# ── Security Vault ────────────────────────────────────────────────
+# ── Security Vault ─────────────────────────────────────────────
 class SecurityVault:
     _MASTER_PASSWORD = os.environ.get("FORGEFLOW_SECRET", "ForgeFlow-Dev-2026!")
     _SALT = b"ForgeFlowNDPA2026"
@@ -95,28 +84,28 @@ class SecurityVault:
             algorithm=hashes.SHA256(),
             length=32,
             salt=self._SALT,
-            iterations=480_000,
+            iterations=100_000,
         )
         return kdf.derive(self._MASTER_PASSWORD.encode())
 
     def encrypt(self, plaintext: str) -> str:
-        nonce  = os.urandom(12)
+        nonce = os.urandom(12)
         aesgcm = AESGCM(self._key)
-        ct     = aesgcm.encrypt(nonce, plaintext.encode(), None)
+        ct = aesgcm.encrypt(nonce, plaintext.encode(), None)
         return "ENC::" + base64.urlsafe_b64encode(nonce + ct).decode()
 
     def decrypt(self, token: str) -> str:
         if not token or not token.startswith("ENC::"):
             return token or ""
-        raw    = base64.urlsafe_b64decode(token[5:])
-        nonce  = raw[:12]
-        ct     = raw[12:]
+        raw = base64.urlsafe_b64decode(token[5:])
+        nonce = raw[:12]
+        ct = raw[12:]
         aesgcm = AESGCM(self._key)
         return aesgcm.decrypt(nonce, ct, None).decode()
 
 vault = SecurityVault()
 
-# ── CBN Config ────────────────────────────────────────────────────
+# ── CBN Config ─────────────────────────────────────────────────
 CBN_TIMELINES = {"Web": 72, "PoS": 72, "ATM": 48, "USSD": 48}
 CBN_REF = {
     "Web":  "CBN Circular FPR/DIR/GEN/CIR/06/010",
@@ -125,175 +114,137 @@ CBN_REF = {
     "USSD": "CBN Consumer Protection Framework 2022",
 }
 
-# ── OCR (regex) ───────────────────────────────────────────────────
+# ── OCR ────────────────────────────────────────────────────────
 BANK_ALIASES = {
-    r"guaranty|gtbank|gt bank":  "Guaranty Trust Bank (GTBank)",
-    r"access bank|access\b":     "Access Bank",
-    r"united bank|uba\b":        "United Bank for Africa (UBA)",
-    r"zenith":                   "Zenith Bank",
-    r"first bank|firstbank":     "First Bank of Nigeria",
-    r"kuda":                     "Kuda Microfinance Bank",
-    r"opay|o-pay":               "OPay Digital Services",
-    r"moniepoint":               "Moniepoint MFB",
-    r"palmpay":                  "PalmPay",
-    r"wema|alat":                "Wema Bank / ALAT",
-    r"sterling":                 "Sterling Bank",
-    r"fidelity":                 "Fidelity Bank",
-    r"fcmb":                     "First City Monument Bank (FCMB)",
-    r"stanbic":                  "Stanbic IBTC Bank",
-    r"union bank":               "Union Bank",
-    r"ecobank":                  "Ecobank Nigeria",
-    r"polaris":                  "Polaris Bank",
-    r"providus":                 "Providus Bank",
-    r"lotus":                    "Lotus Bank",
+    r"guaranty|gtbank":  "Guaranty Trust Bank (GTBank)",
+    r"access bank":      "Access Bank",
+    r"united bank|uba":  "United Bank for Africa (UBA)",
+    r"zenith":           "Zenith Bank",
+    r"first bank":       "First Bank of Nigeria",
+    r"kuda":             "Kuda Microfinance Bank",
+    r"opay":             "OPay Digital Services",
+    r"moniepoint":       "Moniepoint MFB",
+    r"palmpay":          "PalmPay",
+    r"wema|alat":        "Wema Bank / ALAT",
+    r"sterling":         "Sterling Bank",
+    r"fidelity":         "Fidelity Bank",
+    r"fcmb":             "First City Monument Bank",
+    r"stanbic":          "Stanbic IBTC Bank",
 }
 
-TX_REF_PATTERNS = [
-    r"\b([A-Z]{2,5}\d{10,20})\b",
-    r"\bRef(?:erence)?[:\s#]+([A-Z0-9\-]{8,25})\b",
-    r"\bTrans(?:action)?[:\s#]+([A-Z0-9\-]{8,25})\b",
-    r"\bRRN[:\s]+(\d{12})\b",
-    r"\bSession ID[:\s]+([A-Z0-9]{15,30})\b",
-    r"\b(\d{22})\b",
-]
-
-def parse_receipt_text(text: str) -> dict:
+def parse_receipt(text: str) -> dict:
     bank = None
     for pattern, canonical in BANK_ALIASES.items():
         if re.search(pattern, text, re.IGNORECASE):
             bank = canonical
             break
-
-    tx_ref = None
-    for pat in TX_REF_PATTERNS:
-        m = re.search(pat, text, re.IGNORECASE)
-        if m:
-            tx_ref = m.group(1)
-            break
-
-    amt_match  = re.search(r"(?:₦|NGN|Amount)[:\s]*([\d,]+(?:\.\d{2})?)", text, re.IGNORECASE)
+    ref_match = re.search(r"(?:Ref|Trans)[:\s#]+([A-Z0-9\-]{8,25})", text, re.IGNORECASE)
+    amt_match = re.search(r"(?:₦|NGN|Amount)[:\s]*([\d,]+(?:\.\d{2})?)", text, re.IGNORECASE)
     date_match = re.search(r"(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})", text)
-
-    found = sum(1 for v in [bank, tx_ref, amt_match, date_match] if v)
+    found = sum(1 for v in [bank, ref_match, amt_match, date_match] if v)
     return {
         "bank_name":  bank,
-        "tx_ref":     tx_ref,
+        "tx_ref":     ref_match.group(1) if ref_match else None,
         "amount":     float(amt_match.group(1).replace(",", "")) if amt_match else None,
         "date":       date_match.group(1) if date_match else None,
         "confidence": {4: "HIGH", 3: "HIGH", 2: "MEDIUM"}.get(found, "LOW"),
     }
 
-# ── PDF Generator ─────────────────────────────────────────────────
-def generate_escalation_pdf(dispute: dict, customer_name: str, account_number: str) -> str:
+# ── PDF Generator ───────────────────────────────────────────────
+def generate_pdf(dispute: dict, customer_name: str) -> str:
     path = f"/tmp/escalation_{dispute['id']}.pdf"
-
-    GREEN   = colors.HexColor("#006B3F")
-    NAVY    = colors.HexColor("#0A1628")
-    RED     = colors.HexColor("#C0392B")
-    GREY    = colors.HexColor("#7F8C9A")
-    LIGHT   = colors.HexColor("#F4F6F8")
+    GREEN = colors.HexColor("#006B3F")
+    NAVY  = colors.HexColor("#0A1628")
+    RED   = colors.HexColor("#C0392B")
+    GREY  = colors.HexColor("#7F8C9A")
 
     doc = SimpleDocTemplate(path, pagesize=A4,
-          leftMargin=2.5*cm, rightMargin=2.5*cm,
-          topMargin=2.5*cm, bottomMargin=2.5*cm)
+        leftMargin=2.5*cm, rightMargin=2.5*cm,
+        topMargin=2.5*cm, bottomMargin=2.5*cm)
 
-    styles = getSampleStyleSheet()
-
-    def sty(name, **kw): return ParagraphStyle(name, **kw)
-
-    header_sty = sty("H", fontSize=22, textColor=NAVY, fontName="Helvetica-Bold", spaceAfter=2)
-    sub_sty    = sty("S", fontSize=10, textColor=GREEN, fontName="Helvetica-Bold", spaceAfter=12)
-    body_sty   = sty("B", fontSize=10, leading=16, fontName="Helvetica", spaceAfter=10)
-    bold_sty   = sty("Bo", fontSize=10, leading=16, fontName="Helvetica-Bold", spaceAfter=6)
-    red_sty    = sty("R", fontSize=10, leading=16, fontName="Helvetica-Bold", textColor=RED, spaceAfter=8)
-    small_sty  = sty("Sm", fontSize=8, textColor=GREY, fontName="Helvetica", spaceAfter=4)
+    def sty(n, **kw): return ParagraphStyle(n, **kw)
+    h  = sty("H", fontSize=22, textColor=NAVY, fontName="Helvetica-Bold", spaceAfter=4)
+    s  = sty("S", fontSize=10, textColor=GREEN, fontName="Helvetica-Bold", spaceAfter=10)
+    b  = sty("B", fontSize=10, leading=16, fontName="Helvetica", spaceAfter=8)
+    bo = sty("Bo", fontSize=10, fontName="Helvetica-Bold", spaceAfter=6)
+    r  = sty("R", fontSize=10, fontName="Helvetica-Bold", textColor=RED, spaceAfter=8)
+    sm = sty("Sm", fontSize=8, textColor=GREY, fontName="Helvetica")
 
     now      = datetime.datetime.now()
     deadline = datetime.datetime.fromisoformat(dispute["deadline"])
     logged   = datetime.datetime.fromisoformat(dispute["logged_at"])
     overdue  = max(0, int((now - deadline).total_seconds() / 3600))
-    hours    = dispute["timeline_hours"]
 
-    story = []
-    story.append(Paragraph("ForgeFlow", header_sty))
-    story.append(Paragraph("AI-Powered Consumer Dispute Resolution · Nigeria", sub_sty))
-    story.append(HRFlowable(width="100%", thickness=2, color=GREEN, spaceAfter=10))
-    story.append(Paragraph(f"Date: <b>{now.strftime('%d %B %Y')}</b>", body_sty))
-    story.append(Paragraph(f"Ref: <b>FF-ESC-{dispute['id']}-{now.strftime('%Y%m%d')}</b>", body_sty))
-    story.append(Spacer(1, 0.3*cm))
-    story.append(Paragraph("<b>TO: The Director, Consumer Protection Dept, CBN, Abuja</b>", bold_sty))
-    story.append(Paragraph(f"<b>CC: MD/CEO, {dispute['bank']}</b>", body_sty))
-    story.append(Spacer(1, 0.3*cm))
+    story = [
+        Paragraph("ForgeFlow", h),
+        Paragraph("AI-Powered Consumer Dispute Resolution · Nigeria", s),
+        HRFlowable(width="100%", thickness=2, color=GREEN, spaceAfter=10),
+        Paragraph(f"Date: <b>{now.strftime('%d %B %Y')}</b>", b),
+        Paragraph(f"Ref: <b>FF-ESC-{dispute['id']}</b>", b),
+        Spacer(1, 0.3*cm),
+        Paragraph("<b>TO: Director, Consumer Protection Dept, CBN, Abuja</b>", bo),
+        Paragraph(f"<b>CC: MD/CEO, {dispute['bank']}</b>", b),
+        Spacer(1, 0.3*cm),
+        Paragraph(f"<b>RE: FORMAL ESCALATION — UNRESOLVED {dispute['tx_type']} TRANSACTION | {dispute['bank']} | REF: {dispute['tx_ref']}</b>", r),
+        HRFlowable(width="100%", thickness=0.5, color=GREY, spaceAfter=10),
+        Paragraph("Dear Director,", b),
+        Paragraph(
+            f"We formally notify your office of a failed {dispute['tx_type']} transaction "
+            f"unresolved beyond the CBN-mandated {dispute['timeline_hours']}-hour window by "
+            f"<b>{dispute['bank']}</b>, violating <b>{CBN_REF.get(dispute['tx_type'], 'CBN Circular')}</b>.",
+            b),
+    ]
 
-    subject = (f"FORMAL ESCALATION — UNRESOLVED FAILED {dispute['tx_type'].upper()} TRANSACTION | "
-               f"{dispute['bank'].upper()} | REF: {dispute['tx_ref']} | "
-               f"VIOLATION OF {CBN_REF.get(dispute['tx_type'], 'CBN Circular')}")
-    story.append(Paragraph(f"<b>RE: {subject}</b>", red_sty))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=GREY, spaceAfter=10))
-    story.append(Paragraph("Dear Director,", body_sty))
-    story.append(Paragraph(
-        f"We write on behalf of our client to formally notify your office of a failed electronic "
-        f"funds transfer that has remained unresolved beyond the CBN-mandated {hours}-hour window, "
-        f"constituting a clear violation by <b>{dispute['bank']}</b>.", body_sty))
-
-    # Case table
-    tbl_data = [
+    tbl = Table([
         ["Field", "Details"],
-        ["Customer Name", customer_name],
+        ["Customer", customer_name],
         ["Bank", dispute["bank"]],
-        ["Transaction Reference", dispute["tx_ref"]],
+        ["TX Reference", dispute["tx_ref"]],
         ["Channel", dispute["tx_type"]],
         ["Amount", f"NGN {dispute['amount']:,.2f}"],
-        ["Date Logged", logged.strftime("%d %b %Y, %H:%M")],
-        ["CBN Deadline", deadline.strftime("%d %b %Y, %H:%M")],
-        ["Hours Overdue", f"{'OVERDUE BY ' + str(overdue) + 'h' if overdue > 0 else 'WITHIN WINDOW'}"],
-    ]
-    tbl = Table(tbl_data, colWidths=[5.5*cm, 11*cm])
+        ["Logged", logged.strftime("%d %b %Y, %H:%M")],
+        ["Deadline", deadline.strftime("%d %b %Y, %H:%M")],
+        ["Overdue", f"{overdue}h" if overdue > 0 else "Within window"],
+    ], colWidths=[5*cm, 11.5*cm])
+
     tbl.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), NAVY),
         ("TEXTCOLOR", (0,0), (-1,0), colors.white),
         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, LIGHT]),
-        ("FONTNAME", (0,1), (0,-1), "Helvetica-Bold"),
+        ("FONTSIZE", (0,0), (-1,-1), 9),
         ("GRID", (0,0), (-1,-1), 0.5, GREY),
         ("TOPPADDING", (0,0), (-1,-1), 5),
         ("BOTTOMPADDING", (0,0), (-1,-1), 5),
         ("LEFTPADDING", (0,0), (-1,-1), 8),
-        ("FONTSIZE", (0,0), (-1,-1), 9),
     ]))
     story.append(tbl)
     story.append(Spacer(1, 0.3*cm))
 
-    story.append(Paragraph("<b>FORMAL DEMANDS:</b>", bold_sty))
-    for i, d in enumerate([
-        f"Immediate refund of <b>NGN {dispute['amount']:,.2f}</b> within 24 hours.",
-        "Written confirmation from the bank's Complaint Management Officer (CMO).",
-        "Statutory interest on withheld funds at the CBN Monetary Policy Rate.",
-        "Formal apology per the CBN Consumer Protection Framework §4.2.",
-    ], 1):
-        story.append(Paragraph(f"{i}. {d}", body_sty))
-
-    story.append(Paragraph(
-        "<b>NOTICE:</b> Failure to comply within 48 hours will result in a formal complaint "
-        "filed with the CBN Consumer Protection portal and the Consumer Protection Council (CPC).",
-        red_sty))
-
-    story.append(Spacer(1, 0.3*cm))
-    story.append(Paragraph("Yours faithfully,", body_sty))
-    story.append(Paragraph("<b>ForgeFlow Dispute Resolution System</b>", bold_sty))
-    story.append(HRFlowable(width="100%", thickness=1, color=GREEN, spaceAfter=6))
-    story.append(Paragraph(
-        f"Auto-generated by ForgeFlow AI Engine v2.0 on {now.strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"Case hash: {hashlib.sha256(dispute['id'].encode()).hexdigest()[:16].upper()} | "
-        f"NDPA §2.1 compliant", small_sty))
+    story += [
+        Paragraph("<b>DEMANDS:</b>", bo),
+        Paragraph(f"1. Immediate refund of <b>NGN {dispute['amount']:,.2f}</b> within 24 hours.", b),
+        Paragraph("2. Written confirmation from the bank's Complaint Management Officer.", b),
+        Paragraph("3. Statutory interest at CBN Monetary Policy Rate for each day of delay.", b),
+        Paragraph(
+            "<b>NOTICE:</b> Non-compliance within 48 hours will result in a formal CBN complaint portal filing.",
+            r),
+        Spacer(1, 0.3*cm),
+        Paragraph("Yours faithfully,", b),
+        Paragraph("<b>ForgeFlow Dispute Resolution System</b>", bo),
+        HRFlowable(width="100%", thickness=1, color=GREEN, spaceAfter=6),
+        Paragraph(
+            f"Auto-generated {now.strftime('%Y-%m-%d %H:%M')} | "
+            f"Hash: {hashlib.sha256(dispute['id'].encode()).hexdigest()[:16].upper()} | NDPA §2.1",
+            sm),
+    ]
 
     doc.build(story)
     return path
 
-# ── FastAPI App ───────────────────────────────────────────────────
+# ── FastAPI App ─────────────────────────────────────────────────
 app = FastAPI(
     title="ForgeFlow API",
-    description="AI-Powered Dispute Resolution for Nigeria · CBN Compliant",
+    description="AI-Powered Dispute Resolution · Nigeria · CBN Compliant",
     version="2.0.0",
 )
 
@@ -305,34 +256,29 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-async def startup():
-    await database.connect()
+def startup():
+    init_db()
 
-@app.on_event("shutdown")
-async def shutdown():
-    await database.disconnect()
-
-# ── Pydantic Models ───────────────────────────────────────────────
-class DisputeCreate(BaseModel):
-    bank:           str
-    amount:         float
-    tx_type:        str = "PoS"
-    tx_ref:         Optional[str] = None
-    customer_name:  str
+# ── Pydantic Models ─────────────────────────────────────────────
+class DisputeIn(BaseModel):
+    bank: str
+    amount: float
+    tx_type: str = "PoS"
+    tx_ref: Optional[str] = None
+    customer_name: str
     account_number: Optional[str] = ""
-    consent_given:  bool = False
+    consent_given: bool = False
 
-class OCRRequest(BaseModel):
+class OCRIn(BaseModel):
     receipt_text: str
 
-class ResolveRequest(BaseModel):
+class ResolveIn(BaseModel):
     dispute_id: str
-    note:       Optional[str] = ""
+    note: Optional[str] = ""
 
-# ── Routes ────────────────────────────────────────────────────────
-
+# ── Routes ──────────────────────────────────────────────────────
 @app.get("/")
-async def root():
+def root():
     return {
         "product": "ForgeFlow v2.0",
         "founder": "Ogunremi Ayodele Kingsley",
@@ -341,86 +287,72 @@ async def root():
     }
 
 @app.get("/health")
-async def health():
-    return {"status": "healthy", "timestamp": datetime.datetime.now().isoformat()}
+def health():
+    return {"status": "healthy", "time": datetime.datetime.now().isoformat()}
 
 @app.post("/disputes/intake")
-async def intake(data: DisputeCreate):
+def intake(data: DisputeIn):
     if not data.consent_given:
-        raise HTTPException(
-            status_code=403,
-            detail="NDPA §2.1: Explicit consent required before processing personal data."
-        )
+        raise HTTPException(403, "NDPA §2.1: Consent required.")
 
     hours    = CBN_TIMELINES.get(data.tx_type, 72)
     now      = datetime.datetime.now()
     deadline = now + datetime.timedelta(hours=hours)
     warning  = now + datetime.timedelta(hours=hours * 0.75)
-
-    dispute_id = str(uuid.uuid4())[:8].upper()
-    tx_ref     = data.tx_ref or f"FF-{uuid.uuid4().hex[:10].upper()}"
+    did      = str(uuid.uuid4())[:8].upper()
+    tx_ref   = data.tx_ref or f"FF-{uuid.uuid4().hex[:10].upper()}"
 
     audit = json.dumps([{
-        "event":     "DISPUTE_LOGGED",
+        "event": "DISPUTE_LOGGED",
         "timestamp": now.isoformat(),
-        "actor":     "ForgeFlow System",
+        "actor": "ForgeFlow System"
     }])
 
-    query = disputes_table.insert().values(
-        id             = dispute_id,
-        bank           = data.bank,
-        amount         = data.amount,
-        tx_type        = data.tx_type,
-        tx_ref         = tx_ref,
-        customer_name  = vault.encrypt(data.customer_name),
-        account_number = vault.encrypt(data.account_number) if data.account_number else "",
-        status         = "MONITORING",
-        logged_at      = now.isoformat(),
-        deadline       = deadline.isoformat(),
-        warning_at     = warning.isoformat(),
-        timeline_hours = hours,
-        audit_trail    = audit,
-    )
-    await database.execute(query)
+    conn = get_db()
+    conn.execute("""
+        INSERT INTO disputes VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (
+        did, data.bank, data.amount, data.tx_type, tx_ref,
+        vault.encrypt(data.customer_name),
+        vault.encrypt(data.account_number) if data.account_number else "",
+        "MONITORING", now.isoformat(), deadline.isoformat(),
+        warning.isoformat(), hours, audit
+    ))
 
-    # Log consent
-    consent_entry = {
-        "id":             str(uuid.uuid4()),
-        "subject_id":     dispute_id,
-        "purpose":        "Dispute resolution processing",
-        "lawful_basis":   "Explicit consent (NDPA §2.1)",
-        "timestamp":      now.isoformat(),
-        "integrity_hash": hashlib.sha256(
-            f"{dispute_id}{now.isoformat()}".encode()
-        ).hexdigest(),
-    }
-    await database.execute(consent_table.insert().values(**consent_entry))
+    consent_id = str(uuid.uuid4())
+    conn.execute("""
+        INSERT INTO consent_log VALUES (?,?,?,?,?,?)
+    """, (
+        consent_id, did, "Dispute resolution",
+        "Explicit consent (NDPA §2.1)", now.isoformat(),
+        hashlib.sha256(f"{did}{now.isoformat()}".encode()).hexdigest()
+    ))
+    conn.commit()
+    conn.close()
 
     return {
-        "success":       True,
-        "dispute_id":    dispute_id,
-        "tx_ref":        tx_ref,
-        "bank":          data.bank,
-        "amount":        data.amount,
-        "tx_type":       data.tx_type,
-        "status":        "MONITORING",
-        "logged_at":     now.isoformat(),
-        "deadline":      deadline.isoformat(),
+        "success": True,
+        "dispute_id": did,
+        "tx_ref": tx_ref,
+        "bank": data.bank,
+        "amount": data.amount,
+        "status": "MONITORING",
+        "deadline": deadline.isoformat(),
         "timeline_hours": hours,
-        "cbn_reference": CBN_REF.get(data.tx_type, "CBN Circular"),
-        "message":       f"Dispute #{dispute_id} logged. CBN {hours}h window started.",
+        "cbn_reference": CBN_REF.get(data.tx_type),
+        "message": f"Dispute #{did} logged. CBN {hours}h window started.",
     }
 
 @app.get("/disputes")
-async def list_disputes(status: Optional[str] = None):
-    query = disputes_table.select()
-    rows  = await database.fetch_all(query)
+def list_disputes(status: Optional[str] = None):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM disputes").fetchall()
+    conn.close()
     result = []
     for r in rows:
         d = dict(r)
         if status and d["status"] != status:
             continue
-        # Don't expose encrypted fields in list
         d.pop("customer_name", None)
         d.pop("account_number", None)
         d["audit_trail"] = json.loads(d.get("audit_trail", "[]"))
@@ -428,131 +360,96 @@ async def list_disputes(status: Optional[str] = None):
     return {"disputes": result, "total": len(result)}
 
 @app.get("/disputes/{dispute_id}")
-async def get_dispute(dispute_id: str):
-    query = disputes_table.select().where(disputes_table.c.id == dispute_id)
-    row   = await database.fetch_one(query)
+def get_dispute(dispute_id: str):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM disputes WHERE id=?", (dispute_id,)).fetchone()
+    conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Dispute not found")
+        raise HTTPException(404, "Dispute not found")
     d = dict(row)
-    d["audit_trail"] = json.loads(d.get("audit_trail", "[]"))
     d.pop("customer_name", None)
     d.pop("account_number", None)
+    d["audit_trail"] = json.loads(d.get("audit_trail", "[]"))
     return d
 
 @app.post("/disputes/{dispute_id}/escalate")
-async def escalate(dispute_id: str):
-    query = disputes_table.select().where(disputes_table.c.id == dispute_id)
-    row   = await database.fetch_one(query)
+def escalate(dispute_id: str):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM disputes WHERE id=?", (dispute_id,)).fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Dispute not found")
-
-    d    = dict(row)
+        conn.close()
+        raise HTTPException(404, "Not found")
+    d = dict(row)
     name = vault.decrypt(d["customer_name"])
-    acct = vault.decrypt(d["account_number"]) if d.get("account_number") else ""
-
-    pdf_path = generate_escalation_pdf(d, name, acct)
-
-    # Update status
-    now   = datetime.datetime.now()
+    pdf_path = generate_pdf(d, name)
+    now = datetime.datetime.now()
     trail = json.loads(d.get("audit_trail", "[]"))
-    trail.append({
-        "event":     "ESCALATION_LETTER_GENERATED",
-        "timestamp": now.isoformat(),
-        "actor":     "ForgeFlow Engine",
-    })
-    await database.execute(
-        disputes_table.update()
-        .where(disputes_table.c.id == dispute_id)
-        .values(status="ESCALATE", audit_trail=json.dumps(trail))
-    )
-
-    return FileResponse(
-        pdf_path,
-        media_type="application/pdf",
-        filename=f"ForgeFlow_Escalation_{dispute_id}.pdf"
-    )
+    trail.append({"event": "ESCALATED", "timestamp": now.isoformat(), "actor": "ForgeFlow"})
+    conn.execute("UPDATE disputes SET status=?, audit_trail=? WHERE id=?",
+                 ("ESCALATE", json.dumps(trail), dispute_id))
+    conn.commit()
+    conn.close()
+    return FileResponse(pdf_path, media_type="application/pdf",
+                        filename=f"ForgeFlow_Escalation_{dispute_id}.pdf")
 
 @app.post("/disputes/{dispute_id}/resolve")
-async def resolve(dispute_id: str, data: ResolveRequest):
-    query = disputes_table.select().where(disputes_table.c.id == dispute_id)
-    row   = await database.fetch_one(query)
+def resolve(dispute_id: str, data: ResolveIn):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM disputes WHERE id=?", (dispute_id,)).fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail="Dispute not found")
-
-    d     = dict(row)
-    now   = datetime.datetime.now()
+        conn.close()
+        raise HTTPException(404, "Not found")
+    d = dict(row)
+    now = datetime.datetime.now()
     trail = json.loads(d.get("audit_trail", "[]"))
-    trail.append({
-        "event":     "MARKED_RESOLVED",
-        "timestamp": now.isoformat(),
-        "actor":     "Admin",
-        "note":      data.note,
-    })
-    await database.execute(
-        disputes_table.update()
-        .where(disputes_table.c.id == dispute_id)
-        .values(status="RESOLVED", audit_trail=json.dumps(trail))
-    )
+    trail.append({"event": "RESOLVED", "timestamp": now.isoformat(), "actor": "Admin", "note": data.note})
+    conn.execute("UPDATE disputes SET status=?, audit_trail=? WHERE id=?",
+                 ("RESOLVED", json.dumps(trail), dispute_id))
+    conn.commit()
+    conn.close()
     return {"success": True, "dispute_id": dispute_id, "status": "RESOLVED"}
 
 @app.post("/ocr/extract")
-async def ocr_extract(data: OCRRequest):
-    return parse_receipt_text(data.receipt_text)
+def ocr_extract(data: OCRIn):
+    return parse_receipt(data.receipt_text)
 
 @app.post("/escalation/check")
-async def check_escalations():
-    query = disputes_table.select()
-    rows  = await database.fetch_all(query)
-    now   = datetime.datetime.now()
+def check_escalations():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM disputes").fetchall()
+    now = datetime.datetime.now()
     escalated = []
-    warned    = []
-
+    warned = []
     for row in rows:
         d = dict(row)
         if d["status"] in ("RESOLVED", "CLOSED", "ESCALATE"):
             continue
-
         deadline   = datetime.datetime.fromisoformat(d["deadline"])
         warning_at = datetime.datetime.fromisoformat(d["warning_at"])
         trail      = json.loads(d.get("audit_trail", "[]"))
-
         if now > deadline:
-            trail.append({"event": "AUTO_ESCALATED", "timestamp": now.isoformat(), "actor": "ForgeFlow Engine"})
-            await database.execute(
-                disputes_table.update()
-                .where(disputes_table.c.id == d["id"])
-                .values(status="ESCALATE", audit_trail=json.dumps(trail))
-            )
+            trail.append({"event": "AUTO_ESCALATED", "timestamp": now.isoformat(), "actor": "Engine"})
+            conn.execute("UPDATE disputes SET status=?, audit_trail=? WHERE id=?",
+                         ("ESCALATE", json.dumps(trail), d["id"]))
             escalated.append(d["id"])
-
         elif now > warning_at and d["status"] == "MONITORING":
-            trail.append({"event": "WARNING_TRIGGERED", "timestamp": now.isoformat(), "actor": "ForgeFlow Engine"})
-            await database.execute(
-                disputes_table.update()
-                .where(disputes_table.c.id == d["id"])
-                .values(status="WARNING", audit_trail=json.dumps(trail))
-            )
+            trail.append({"event": "WARNING", "timestamp": now.isoformat(), "actor": "Engine"})
+            conn.execute("UPDATE disputes SET status=?, audit_trail=? WHERE id=?",
+                         ("WARNING", json.dumps(trail), d["id"]))
             warned.append(d["id"])
-
-    return {
-        "checked":   len(rows),
-        "escalated": escalated,
-        "warned":    warned,
-        "timestamp": now.isoformat(),
-    }
+    conn.commit()
+    conn.close()
+    return {"escalated": escalated, "warned": warned, "timestamp": now.isoformat()}
 
 @app.get("/stats")
-async def stats():
-    query = disputes_table.select()
-    rows  = await database.fetch_all(query)
+def stats():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM disputes").fetchall()
+    conn.close()
     by_status = {}
-    total_amount = 0
+    total = 0
     for r in rows:
         d = dict(r)
         by_status[d["status"]] = by_status.get(d["status"], 0) + 1
-        total_amount += d["amount"]
-    return {
-        "total_disputes": len(rows),
-        "by_status":      by_status,
-        "total_amount":   total_amount,
-    }
+        total += d["amount"]
+    return {"total_disputes": len(rows), "by_status": by_status, "total_amount": total}
