@@ -1047,3 +1047,122 @@
 
 </body>
 </html>
+<!-- DISPUTE FORM SECTION -->
+<section id="submit" style="background:#060D1A; padding:80px 6vw;">
+  <div style="max-width:600px; margin:0 auto;">
+    <div style="font-size:11px; color:#00D68F; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; font-family:'Courier New',monospace;">Submit a Dispute</div>
+    <h2 style="font-family:'Syne',sans-serif; font-size:32px; font-weight:800; color:#E2EBF5; margin-bottom:10px; letter-spacing:-1px;">Report Your Failed Transaction</h2>
+    <p style="font-size:15px; color:#5A7A9A; margin-bottom:36px; line-height:1.7;">Free. Takes 60 seconds. We handle the rest.</p>
+
+    <div id="ff-form" style="background:#0C1622; border:1px solid #142030; border-radius:16px; padding:32px;">
+      
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:11px; color:#5A7A9A; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-family:'Courier New',monospace;">Your Name</label>
+        <input id="ff-name" type="text" placeholder="e.g. Chukwuemeka Obi" style="width:100%; background:#060D1A; border:1px solid #142030; border-radius:8px; padding:12px 16px; color:#E2EBF5; font-size:14px; outline:none; box-sizing:border-box; font-family:'DM Sans',sans-serif;" />
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:11px; color:#5A7A9A; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-family:'Courier New',monospace;">Bank Name</label>
+        <select id="ff-bank" style="width:100%; background:#060D1A; border:1px solid #142030; border-radius:8px; padding:12px 16px; color:#E2EBF5; font-size:14px; outline:none; box-sizing:border-box; font-family:'DM Sans',sans-serif;">
+          <option value="">Select your bank</option>
+          <option>Guaranty Trust Bank (GTBank)</option>
+          <option>Access Bank</option>
+          <option>United Bank for Africa (UBA)</option>
+          <option>Zenith Bank</option>
+          <option>First Bank of Nigeria</option>
+          <option>Kuda Microfinance Bank</option>
+          <option>OPay Digital Services</option>
+          <option>Moniepoint MFB</option>
+          <option>PalmPay</option>
+          <option>Wema Bank / ALAT</option>
+          <option>Sterling Bank</option>
+          <option>Fidelity Bank</option>
+          <option>First City Monument Bank (FCMB)</option>
+          <option>Stanbic IBTC Bank</option>
+          <option>Union Bank</option>
+          <option>Ecobank Nigeria</option>
+          <option>Polaris Bank</option>
+          <option>Providus Bank</option>
+        </select>
+      </div>
+
+      <div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:140px;">
+          <label style="display:block; font-size:11px; color:#5A7A9A; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-family:'Courier New',monospace;">Amount (₦)</label>
+          <input id="ff-amount" type="number" placeholder="e.g. 45000" style="width:100%; background:#060D1A; border:1px solid #142030; border-radius:8px; padding:12px 16px; color:#E2EBF5; font-size:14px; outline:none; box-sizing:border-box; font-family:'DM Sans',sans-serif;" />
+        </div>
+        <div style="flex:1; min-width:140px;">
+          <label style="display:block; font-size:11px; color:#5A7A9A; letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; font-family:'Courier New',monospace;">Transaction Type</label>
+          <select id="ff-type" style="width:100%; background:#060D1A; border:1px solid #142030; border-radius:8px; padding:12px 16px; color:#E2EBF5; font-size:14px; outline:none; box-sizing:border-box; font-family:'DM Sans',sans-serif;">
+            <option value="PoS">PoS (72h)</option>
+            <option value="Web">Web/App (72h)</option>
+            <option value="ATM">ATM (48h)</option>
+            <option value="USSD">USSD (48h)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:24px;">
+        <label style="display:flex; gap:10px; align-items:flex-start; cursor:pointer;">
+          <input id="ff-consent" type="checkbox" style="margin-top:3px; flex-shrink:0;" />
+          <span style="font-size:12px; color:#5A7A9A; line-height:1.6;">I consent to ForgeFlow processing my data for dispute resolution purposes (NDPA §2.1)</span>
+        </label>
+      </div>
+
+      <button onclick="submitDispute()" style="width:100%; background:#00C853; color:#000; border:none; border-radius:10px; padding:14px; font-size:15px; font-weight:800; cursor:pointer; font-family:'Syne',sans-serif; letter-spacing:0.3px; transition:opacity 0.2s;">
+        Submit Dispute — Free
+      </button>
+
+      <div id="ff-result" style="margin-top:20px; display:none;"></div>
+    </div>
+  </div>
+</section>
+
+<script>
+async function submitDispute() {
+  const name    = document.getElementById('ff-name').value.trim();
+  const bank    = document.getElementById('ff-bank').value;
+  const amount  = parseFloat(document.getElementById('ff-amount').value);
+  const tx_type = document.getElementById('ff-type').value;
+  const consent = document.getElementById('ff-consent').checked;
+  const result  = document.getElementById('ff-result');
+
+  if (!name || !bank || !amount || !consent) {
+    result.style.display = 'block';
+    result.innerHTML = '<div style="background:#2E0A0A; border:1px solid #C0392B44; border-radius:8px; padding:14px; color:#FF4757; font-size:13px;">Please fill all fields and accept the consent notice.</div>';
+    return;
+  }
+
+  const btn = document.querySelector('#ff-form button');
+  btn.textContent = 'Submitting...';
+  btn.style.opacity = '0.7';
+
+  try {
+    const res = await fetch('https://forgeflow-q7js.onrender.com/disputes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bank, amount, tx_type, customer: name })
+    });
+    const data = await res.json();
+    result.style.display = 'block';
+    result.innerHTML = `
+      <div style="background:#0A2010; border:1px solid #00C85344; border-radius:8px; padding:20px;">
+        <div style="color:#00C853; font-weight:800; font-size:15px; margin-bottom:12px;">✅ Dispute Logged Successfully</div>
+        <div style="font-size:13px; color:#A8C8E8; line-height:1.8;">
+          <div><b style="color:#E2EBF5;">Case ID:</b> #${data.id}</div>
+          <div><b style="color:#E2EBF5;">Bank:</b> ${data.bank || bank}</div>
+          <div><b style="color:#E2EBF5;">CBN Deadline:</b> ${new Date(data.deadline).toLocaleString('en-GB')}</div>
+          <div><b style="color:#E2EBF5;">Window:</b> ${data.hours}h CBN mandate</div>
+          <div style="margin-top:10px; font-size:12px; color:#5A7A9A;">Save your Case ID. We will escalate automatically if the bank misses the deadline.</div>
+        </div>
+      </div>`;
+    btn.textContent = 'Submit Another Dispute';
+    btn.style.opacity = '1';
+  } catch (e) {
+    result.style.display = 'block';
+    result.innerHTML = '<div style="background:#2E0A0A; border:1px solid #C0392B44; border-radius:8px; padding:14px; color:#FF4757; font-size:13px;">Connection error. Please try again in a moment — the server may be waking up (free tier).</div>';
+    btn.textContent = 'Submit Dispute — Free';
+    btn.style.opacity = '1';
+  }
+}
+</script>
